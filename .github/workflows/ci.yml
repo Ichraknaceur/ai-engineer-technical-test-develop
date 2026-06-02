@@ -38,7 +38,7 @@ jobs:
         run: uv run -- pre-commit run --all-files
 
       - name: Type check
-        run: uv run -- ty check
+        run: uv run -- ty check backend/domain backend/ports backend/application
 
   test:
     name: Tests

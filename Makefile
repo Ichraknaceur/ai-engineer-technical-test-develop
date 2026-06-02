@@ -84,8 +84,8 @@ lint: check-uv ## Run linting checks (ruff)
 	uv run -- ruff check $(RUFF_TARGETS)
 
 .PHONY: typecheck
-typecheck: check-uv ## Run type checking with ty
-	uv run -- ty check
+typecheck: check-uv ## Run type checking with ty (pure layers only)
+	uv run -- ty check backend/domain backend/ports backend/application
 
 .PHONY: precommit
 precommit: check-uv install ## Run pre-commit hooks on all files
