@@ -1,0 +1,47 @@
+[project]
+name = "quarry-extraction-pipeline"
+version = "1.0.0"
+description = "Quarry discovery and enrichment pipeline from public web sources"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    # docs
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocs-minify-plugin>=0.8.0",
+    # tests
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "diff-cover>=9.0.0",
+    # code quality
+    "ruff>=0.11.0",
+    "ty>=0.0.1a6",
+    "pre-commit>=4.0.0",
+]
+
+# ── Ruff ──────────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = [
+    "--cov=backend",
+    "--cov-report=term-missing",
+    "--cov-report=xml:coverage.xml",
+]

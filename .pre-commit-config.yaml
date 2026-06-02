@@ -1,0 +1,66 @@
+exclude: ^(\.pre-commit-cache|\.uv-cache)/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=700"]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-yaml
+        args: ["--unsafe"]
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+      - id: name-tests-test
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.2
+    hooks:
+      - id: codespell
+        args: ["-L", "carriere,carrieres,complet,reste,valide"]
+        exclude: >
+          (?x)^(
+            \.pre-commit-cache/|
+            \.pytest_cache/|
+            \.ruff_cache/|
+            \.uv-cache/|
+            site/|
+            uv\.lock
+          )$
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.11.2
+    hooks:
+      - id: uv-lock
+
+  - repo: https://github.com/owenlamont/uv-secure
+    rev: 0.17.0
+    hooks:
+      - id: uv-secure
+        args:
+          - --show-severity
+          - --ignore-unfixed
+          - --severity=medium
+          - --ignore-vulns
+          - GHSA-4gg8-gxpx-9rph  # uv 0.9.26 self-vuln, fixed in uv>=0.11.15 — run: uv self update
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: ^(backend|tests)/
+      - id: ruff-format
+        files: ^(backend|tests)/
+
+  - repo: https://github.com/checkmake/checkmake.git
+    rev: v0.3.2
+    hooks:
+      - id: checkmake
