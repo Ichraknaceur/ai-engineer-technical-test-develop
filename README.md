@@ -1,348 +1,217 @@
-# Senior AI Engineer Technical Test
+# Quarry Extraction Pipeline
 
+> For a given coordinate and radius, what quarries exist there, and are they still operating?
 
-> **Materials Extraction** : discover and enrich quarry records from messy public web sources.
-
----
-
-## Contents
-
-- [The problem](#the-problem)
-- [A few words on the data](#a-few-words-on-the-data)
-- [What to build](#what-to-build)
-- [Output schema](#output-schema)
-- [Example record](#example-record)
-- [API surface](#api-surface)
-- [Working notes](#working-notes)
-- [What to send back](#what-to-send-back)
+[![CI](https://github.com/ichraknaceurr/ai-engineer-technical-test-develop/actions/workflows/ci.yml/badge.svg)](https://github.com/ichraknaceurr/ai-engineer-technical-test-develop/actions/workflows/ci.yml)
+[![Deploy Docs](https://github.com/ichraknaceurr/ai-engineer-technical-test-develop/actions/workflows/docs.yml/badge.svg)](https://github.com/ichraknaceurr/ai-engineer-technical-test-develop/actions/workflows/docs.yml)
 
 ---
 
-## The problem
+## Quick Start
 
-ORIS keeps a global database of construction material sites. **This task is scoped to quarries only**; concrete plants, cement works, and asphalt plants are out of scope. The following image is an example of a quarry site.
+```sh
+# 1. Clone and set up
+git clone https://github.com/ichraknaceurr/ai-engineer-technical-test-develop.git
+cd ai-engineer-technical-test-develop
 
-![Quarry Example](assets/quarry.jpg)
+# 2. Add your OpenAI API key to .env
+cp .env.example .env
+# edit .env → set OPENAI_API_KEY=sk-...
 
-The problem we'd like to solve is as follows :
+# 3. Bootstrap (build Docker images + run DB migrations)
+make bootstrap
 
-> *For a given coordinate and radius, what quarries exist there, and are they still operating?*
+# 4. Start all services
+make up
+# → Frontend: http://localhost:3000
+# → API:      http://localhost:8000/docs
 
-Build the pipeline that answers that.
-
-| | Description |
-| :-- | :-- |
-| **Input**  | a coordinate + radius (only) |
-| **Output** | a structured, grounded record per quarry|
-
----
-
-## A few words on the data
-
-The web sources you'll touch are uneven:
-
-- Public registries are inconsistent across countries.
-- Operator websites are often a 2012 WordPress install with one PDF and no contact page.
-- Directory aggregators repeat each other and quietly invent details.
-- *"Last updated 2014"* might mean the site is still running, or that the quarry was filled in for housing.
-- Some pages return `200` and serve nothing useful.
-
-A good pipeline takes this as the territory, not the exception. **Confident extraction from a stale source is worse than no extraction.** If the system can't tell, the system should say so.
-
----
-
-## What to build
-
-A service that takes a coordinate + radius and returns enriched records for quarries discovered in that area.
-
-The shape is open. You choose the discovery strategy, the scraping approach, the model, the orchestration, the storage. We care about what the system does and how it behaves.
-
-That said, the following need to be true:
-
-1. Everything should be packed into docker-compose
-2. A `README.md` how to run it via docker compose up command
-3. A simple UI app to run the task, watch its progress, view and evaluate results (no authentication is required)
-4. A backend service to process the task. Backend should be following the standard crawling practices
-5. Evaluation test case
-6. Regression test suite
-
----
-
-## Output schema
-
-Every extraction validates against this. Partial fields are fine. **Invalid structure is not.**
-
-<details>
-<summary><strong>JSON Schema</strong></summary>
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": ["site_id", "schema_version", "input", "extraction", "provenance", "metrics", "run_metadata"],
-  "properties": {
-    "site_id":        { "type": "string", "description": "Stable hash of {latitude, longitude, radius_km, run_id}" },
-    "schema_version": { "const": "2.0.0" },
-
-    "input": {
-      "type": "object",
-      "required": ["latitude", "longitude", "radius_km"],
-      "properties": {
-        "latitude":  { "type": "number", "minimum": -90,  "maximum": 90 },
-        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
-        "radius_km": { "type": "number", "exclusiveMinimum": 0 }
-      }
-    },
-
-    "extraction": {
-      "type": "object",
-      "properties": {
-        "official_name":      { "$ref": "#/$defs/groundedString" },
-        "site_type":          { "$ref": "#/$defs/groundedEnum" },
-        "description":        { "$ref": "#/$defs/groundedString" },
-        "materials_produced": { "type": "array", "items": { "$ref": "#/$defs/groundedString" } },
-        "certifications":     { "type": "array", "items": { "$ref": "#/$defs/groundedString" } },
-        "operational_status": { "$ref": "#/$defs/groundedEnum" },
-        "location_verification": {
-          "type": "object",
-          "required": ["is_verified", "confidence", "method"],
-          "properties": {
-            "is_verified":    { "type": "boolean" },
-            "confidence":     { "type": "number", "minimum": 0, "maximum": 1 },
-            "extracted_city": { "type": ["string", "null"] },
-            "method":         { "enum": ["string_match", "geocode", "llm_inference", "none"] }
-          }
-        }
-      }
-    },
-
-    "provenance": {
-      "type": "object",
-      "required": ["sources", "reconciliations"],
-      "properties": {
-        "sources": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["source_id", "url", "fetched_at", "content_hash"],
-            "properties": {
-              "source_id":    { "type": "string" },
-              "url":          { "type": "string", "format": "uri" },
-              "fetched_at":   { "type": "string", "format": "date-time" },
-              "content_hash": { "type": "string" },
-              "trust_tier":   { "enum": ["official", "directory", "news", "unknown"] }
-            }
-          }
-        },
-        "reconciliations": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["field", "candidates", "winner_source_id", "reason"],
-            "properties": {
-              "field": { "type": "string" },
-              "candidates": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "value":     {},
-                    "source_id": { "type": "string" },
-                    "score":     { "type": "number" }
-                  }
-                }
-              },
-              "winner_source_id": { "type": "string" },
-              "reason":           { "type": "string" }
-            }
-          }
-        }
-      }
-    },
-
-    "metrics": {
-      "type": "object",
-      "required": ["llm_tokens_in", "llm_tokens_out", "usd_cost", "latency_ms", "model_calls"],
-      "properties": {
-        "llm_tokens_in":  { "type": "integer" },
-        "llm_tokens_out": { "type": "integer" },
-        "usd_cost":       { "type": "number" },
-        "latency_ms":     { "type": "integer" },
-        "model_calls": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["model", "purpose", "tokens_in", "tokens_out", "usd_cost"],
-            "properties": {
-              "model":      { "type": "string" },
-              "purpose":    { "type": "string" },
-              "tokens_in":  { "type": "integer" },
-              "tokens_out": { "type": "integer" },
-              "usd_cost":   { "type": "number" }
-            }
-          }
-        }
-      }
-    },
-
-    "run_metadata": {
-      "type": "object",
-      "required": ["run_id", "prompt_hash", "scraper_version", "created_at"],
-      "properties": {
-        "run_id":          { "type": "string" },
-        "prompt_hash":     { "type": "string" },
-        "scraper_version": { "type": "string" },
-        "created_at":      { "type": "string", "format": "date-time" }
-      }
-    }
-  },
-
-  "$defs": {
-    "groundedString": {
-      "type": "object",
-      "required": ["value", "confidence", "evidence"],
-      "properties": {
-        "value":          { "type": ["string", "null"] },
-        "confidence":     { "type": "number", "minimum": 0, "maximum": 1 },
-        "abstain_reason": { "type": ["string", "null"] },
-        "evidence": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["source_id", "char_start", "char_end", "quote"],
-            "properties": {
-              "source_id":  { "type": "string" },
-              "char_start": { "type": "integer", "minimum": 0 },
-              "char_end":   { "type": "integer", "minimum": 0 },
-              "quote":      { "type": "string" }
-            }
-          }
-        }
-      }
-    },
-    "groundedEnum": {
-      "allOf": [{ "$ref": "#/$defs/groundedString" }],
-      "properties": {
-        "value": { "enum": ["Quarry", null] }
-      }
-    }
-  }
-}
+# 5. Run an extraction from the CLI
+make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 ```
 
-</details>
-
-A couple of points worth being explicit about:
-
-- **Grounding is per-field.** `value` and `evidence` are co-located. A separate top-level `sources: [{url, snippet}]` list isn't grounding.
-- **Abstaining is first-class.** `value: null` with an `abstain_reason` is a valid, expected output.
-
 ---
 
-## Example record
+## Architecture
 
-<details>
-<summary><strong>Abbreviated example</strong></summary>
+### Components & Data Flow
 
-```json
-{
-  "site_id": "a1f3c8d27e4b9",
-  "schema_version": "2.0.0",
-  "input": { "latitude": 48.8566, "longitude": 2.3522, "radius_km": 50 },
-  "extraction": {
-    "official_name": {
-      "value": "Carrière de Vignats",
-      "confidence": 0.92,
-      "evidence": [
-        { "source_id": "src_2", "char_start": 142, "char_end": 161, "quote": "Carrière de Vignats" }
-      ]
-    },
-    "site_type": {
-      "value": "Quarry",
-      "confidence": 0.88,
-      "evidence": [
-        { "source_id": "src_2", "char_start": 803, "char_end": 838, "quote": "exploitation de roches calcaires" }
-      ]
-    },
-    "operational_status": {
-      "value": null,
-      "confidence": 0.0,
-      "abstain_reason": "no_recent_evidence",
-      "evidence": []
-    }
-  },
-  "provenance": {
-    "sources": [
-      { "source_id": "src_1", "url": "https://example-quarry.fr/",     "fetched_at": "2025-04-12T08:14:33Z", "content_hash": "sha256:9f...", "trust_tier": "official"  },
-      { "source_id": "src_2", "url": "https://directory.example/...",  "fetched_at": "2025-04-12T08:14:51Z", "content_hash": "sha256:c3...", "trust_tier": "directory" }
-    ],
-    "reconciliations": [
-      {
-        "field": "site_type",
-        "candidates": [
-          { "value": "Quarry", "source_id": "src_2", "score": 0.88 },
-          { "value": "Other",  "source_id": "src_1", "score": 0.41 }
-        ],
-        "winner_source_id": "src_2",
-        "reason": "directory entry explicitly states limestone quarry; operator site uses generic 'site industriel'"
-      }
-    ]
-  },
-  "metrics": {
-    "llm_tokens_in": 4127,
-    "llm_tokens_out": 312,
-    "usd_cost": 0.018,
-    "latency_ms": 7340,
-    "model_calls": []
-  },
-  "run_metadata": {
-    "run_id": "r_2025_04_12_a1f3",
-    "prompt_hash": "sha256:1a2b...",
-    "scraper_version": "0.4.1",
-    "created_at": "2025-04-12T08:15:02Z"
-  }
-}
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Browser                                                        │
+│  React UI  ──── POST /api/jobs ────────────────────────────►   │
+│            ◄─── job_id ─────────────────────────────────────   │
+│            ──── GET  /api/jobs/:id (poll every 2s) ─────────►  │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │   FastAPI Backend   │
+                    │   (Python 3.12)     │
+                    └──────────┬──────────┘
+                               │ enqueue
+                    ┌──────────▼──────────┐
+                    │   Redis (queue)     │
+                    └──────────┬──────────┘
+                               │ pick up
+                    ┌──────────▼──────────┐
+                    │   Celery Worker     │
+                    └──┬────────┬─────────┘
+                       │        │
+          ┌────────────▼─┐  ┌───▼────────────┐
+          │  Discovery   │  │    Scraper     │
+          │  Overpass    │  │  httpx + BS4   │
+          │  API (OSM)   │  │  robots.txt    │
+          └────────────┬─┘  └───┬────────────┘
+                       │        │
+                    ┌──▼────────▼──────────┐
+                    │   LLM Extraction     │
+                    │   OpenAI gpt-4o      │
+                    │   grounding +        │
+                    │   abstention         │
+                    └──────────┬───────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │   Reconciliation    │
+                    │   + Validation      │
+                    │   JSON Schema v2    │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │    PostgreSQL       │
+                    └─────────────────────┘
 ```
 
+### Hexagonal Architecture (Ports & Adapters)
+
+```
+backend/
+├── domain/          # Pure business logic — zero external dependencies
+├── ports/           # Python Protocols (interfaces) — inbound + outbound
+├── application/     # Use cases — orchestrate domain through ports
+└── infrastructure/  # Adapters — FastAPI, PostgreSQL, Redis, OpenAI, httpx
+```
+
+The domain never imports from infrastructure. Every external dependency is
+injected through a port interface, making the system fully testable without
+real databases, queues, or API keys.
+
+---
+
+## Technology Stack
+
+| Layer | Technology | Rationale |
+|---|---|---|
+| Backend | Python 3.12 + FastAPI | Async-native, Pydantic validation |
+| Task Queue | Celery 5 + Redis 7 | Battle-tested async workers |
+| Database | PostgreSQL 16 + JSONB | Flexible schema storage |
+| HTTP Client | httpx (async) | Polite crawling with timeout control |
+| HTML Parsing | BeautifulSoup4 + lxml | Robust content extraction |
+| LLM | OpenAI gpt-4o | Strong instruction following, structured output |
+| Geo Discovery | Overpass API (OSM) | Free, globally comprehensive, coordinate-native |
+| Frontend | React 18 + Vite | Lightweight, fast dev loop |
+| Containerisation | Docker Compose v2 | Single-command local deployment |
+| Code Quality | ruff + ty + pre-commit | Fast linting, type checking, git hooks |
+| CI/CD | GitHub Actions | Automated quality checks + docs deploy |
+
+---
+
+## Architecture Decisions & Trade-offs
+
+### Hexagonal architecture over a flat service layer
+**Why:** Allows swapping any adapter (e.g. replace OpenAI with another LLM, or PostgreSQL with SQLite for tests) without touching business logic. The cost is more boilerplate up front.
+
+### Overpass API (OpenStreetMap) as primary discovery
+**Why:** Free, no rate-limit key needed, globally comprehensive for `landuse=quarry`. Trade-off: OSM data can lag real-world changes by hours to days.
+
+### Explicit abstention over best-guess extraction
+**Why:** A confident wrong answer is worse than no answer. The system sets `value: null` with an `abstain_reason` when evidence is insufficient or stale. This reduces recall but eliminates hallucinated data.
+
+### Per-field grounding (value + evidence co-located)
+**Why:** Forces the LLM to cite its sources inline. A top-level `sources` list is not grounding — it doesn't tell you which source justified which value.
+
+### JSONB storage for the full record
+**Why:** The output schema evolves; JSONB avoids migrations for schema changes. Denormalised columns (`official_name`, `operational_status`) exist only for fast API filtering.
+
+### Celery + Redis over asyncio background tasks
+**Why:** Celery survives worker restarts and supports retries, time limits, and multiple workers. The trade-off is operational overhead (Redis service + worker process).
+
+---
+
+## Evaluation Strategy
+
+### Ground truth
+A small set of known quarries in `tests/eval/ground_truth.json`, manually verified against public registries.
+
+### Metrics per field
+
+| Metric | Description |
+|---|---|
+| **Precision** | Extracted value matches the expected value (exact or fuzzy) |
+| **Abstention rate** | How often the system abstains vs. hallucinating when evidence is absent |
+| **Coverage** | Percentage of expected fields that are non-null |
+| **Grounding rate** | Percentage of non-null fields backed by at least one evidence quote |
+
+### Run the evaluation
+
+```sh
+make eval
+```
+
+---
+
+## Known Limitations
+
+| Limitation | Impact | What I'd do next |
+|---|---|---|
+| No JavaScript rendering | Sites with JS-only content return empty text | Add optional Playwright fallback |
+| OSM data lag | Quarries added/closed recently may be missed | Cross-reference BRGM (France) or national open data |
+| Operational status staleness | No real-time business registry access | Integrate SIRENE / Companies House APIs |
+| Language coverage | Prompt tuned for French / English | Language detection + per-language prompt templates |
+| No cross-job deduplication | Same quarry can appear in multiple jobs | Merge by OSM ID or coordinate proximity |
+| Cost unpredictability | Variable page count per quarry | Pre-estimate cost before running; show user a quote |
+
+---
+
+## Development
+
+```sh
+make init          # First install: uv sync + pre-commit hooks
+make run           # Local API server (no Docker)
+make test          # Full test suite with coverage
+make lint          # Ruff linting
+make typecheck     # ty type checking
+make precommit     # Run all pre-commit hooks
+make docs-serve    # Preview docs at http://localhost:8090
+```
+
+---
+
+## Project Structure
+
+```
+.
+├── backend/
+│   ├── domain/          # Entities, value objects, exceptions
+│   ├── ports/           # Inbound + outbound Protocol interfaces
+│   ├── application/     # Services + pipeline steps
+│   └── infrastructure/  # FastAPI, PostgreSQL, Celery, OpenAI, httpx
+├── frontend/            # React 18 + Vite
+├── tests/
+│   ├── unit/            # Domain + application tests (mocked adapters)
+│   ├── integration/     # API + real PostgreSQL
+│   └── eval/            # Ground truth + scoring script
+├── docs/                # MkDocs documentation
+├── docker-compose.yml
+├── Makefile
+└── .env.example
+```
+
+---
+
+<details>
+<summary>Original test brief</summary>
+
+The original problem statement can be found in the
+[ORIS Materials Extraction brief](TECHNICAL_SPEC.md).
+
 </details>
-
----
-
-## API surface
-
-Extend as needed. The core endpoints:
-
-| Method | Path | Purpose |
-| :----- | :--- | :------ |
-| `POST` | `/api/jobs`                              | Submit `{ latitude, longitude, radius_km, max_usd_cost? }` → `{ job_id }` |
-| `GET`  | `/api/jobs/:id`                          | Current state, progress, result or error |
-| `GET`  | `/api/sites`                             | List with `q`, `status` filters and pagination |
-| `GET`  | `/api/sites/:id`                         | Full record with provenance |
-| `GET`  | `/api/health`                            | Queue depth, worker count, recent error rate |
-
----
-
-## Working notes
-
-- **Deployment.** Docker Compose is enough. No cloud deployment expected.
-- **Secrets.** One API key in `.env`. No secrets in the repo.
-- **Politeness.** Respect `robots.txt`. Set a real `User-Agent`. Respect `Retry-After`. Add jitter.
-- **Safety.** Validate URLs before fetching them. Don't follow open redirects.
-
----
-
-## What to send back
-
-A repo, public, private with access, containing :
-
-1. **`README.md`** with:
-   - Description of your architecture and the trade-offs you made,
-   - one diagram of components and data flow,
-   - your eval strategy and metrics,
-   - a short list of known limitations and what you'd do next.
-2. **`Makefile`** (or equivalent) where the following work on a clean machine with Docker, and appropriate structure for the UI and an API key in `.env`, example :
-   ```sh
-   make bootstrap
-   make extract LAT="..." LON="..." RADIUS_KM="..."
-   ```
-3. **A small ground-truth set** and a script that scores against it, with an explanation of the result.
