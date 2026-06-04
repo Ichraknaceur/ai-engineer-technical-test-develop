@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = ""
 
+    # Overpass API — override to use a private instance and avoid rate limits
+    overpass_url: str = "https://overpass-api.de/api/interpreter"
+
     # Scraper
     scraper_user_agent: str = "QuarryBot/1.0 (research; contact@example.com)"
     max_pages_per_quarry: int = 5
