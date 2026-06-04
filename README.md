@@ -10,25 +10,26 @@
 ## Quick Start
 
 ```sh
-# 1. Clone and set up
+# 1. Clone the repository
 git clone https://github.com/ichraknaceurr/ai-engineer-technical-test-develop.git
 cd ai-engineer-technical-test-develop
 
-# 2. Add your OpenAI API key to .env
+# 2. Configure environment
 cp .env.example .env
 # edit .env → set OPENAI_API_KEY=sk-...
 
-# 3. Bootstrap (build Docker images + run DB migrations)
+# 3. Build Docker images
 make bootstrap
 
-# 4. Start all services
+# 4. Start all services (postgres, redis, backend, worker)
 make up
-# → Frontend: http://localhost:3000
-# → API:      http://localhost:8000/docs
+# → API + Swagger UI: http://localhost:8000/docs
 
 # 5. Run an extraction from the CLI
 make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 ```
+
+> DB migrations run automatically on backend startup via the Docker entrypoint.
 
 ---
 
@@ -175,11 +176,12 @@ make eval
 ## Development
 
 ```sh
-make init          # First install: uv sync + pre-commit hooks
-make run           # Local API server (no Docker)
+make bootstrap     # First-time setup: copy .env, build Docker images
+make up            # Start all services (http://localhost:8000)
+make down          # Stop all containers
 make test          # Full test suite with coverage
 make lint          # Ruff linting
-make typecheck     # ty type checking
+make typecheck     # ty type checking (domain + ports + application)
 make precommit     # Run all pre-commit hooks
 make docs-serve    # Preview docs at http://localhost:8090
 ```
