@@ -5,6 +5,8 @@ It orchestrates job creation, persistence, and queue dispatch without
 knowing anything about HTTP, databases, or specific queue technologies.
 """
 
+import uuid
+
 from backend.domain.entities.job import Job
 from backend.domain.value_objects.coordinates import Coordinates
 from backend.ports.outbound.job_repository import IJobRepository
@@ -36,7 +38,16 @@ class JobService:
         Returns:
             The newly created Job with status=PENDING.
         """
-        raise NotImplementedError
+        job = Job(
+            id=f"j_{uuid.uuid4().hex}",
+            latitude=coordinates.latitude,
+            longitude=coordinates.longitude,
+            radius_km=coordinates.radius_km,
+            max_usd_cost=max_usd_cost,
+        )
+        await self._job_repo.save(job)
+        self._queue.enqueue(job.id)
+        return job
 
     async def get(self, job_id: str) -> Job | None:
         """Retrieve the current state of a job by ID.
@@ -47,4 +58,4 @@ class JobService:
         Returns:
             The Job if it exists, None otherwise.
         """
-        raise NotImplementedError
+        return await self._job_repo.get(job_id)

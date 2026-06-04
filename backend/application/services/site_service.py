@@ -27,7 +27,7 @@ class SiteService:
         Returns:
             The QuarryRecord if found, None otherwise.
         """
-        raise NotImplementedError
+        return await self._site_repo.get(site_id)
 
     async def list(
         self,
@@ -47,4 +47,4 @@ class SiteService:
         Returns:
             A tuple of (total_count, records_on_this_page).
         """
-        raise NotImplementedError
+        return await self._site_repo.list(q=q, status=status, page=page, page_size=page_size)

@@ -44,26 +44,22 @@ init: check-uv pyproject.toml .pre-commit-config.yaml install ## Initialize proj
 	$(COPY_ENV_COMMAND)
 
 .PHONY: bootstrap
-bootstrap: check-docker init ## Full first-time setup (Docker + DB migrations)
+bootstrap: check-docker ## First-time setup: copy .env, build images, start all services
+	$(COPY_ENV_COMMAND)
+	@echo "→ Set OPENAI_API_KEY in .env before running make up"
 	docker compose build
-	docker compose run --rm backend alembic upgrade head
-	@echo "Ready. Run: docker compose up"
 
 .PHONY: all
 all: check-uv install format lint check ## Run format, lint, and all checks
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
-.PHONY: run
-run: check-uv install ## Run the local API server (no Docker)
-	uv run -- uvicorn backend.infrastructure.api.main:app --host 127.0.0.1 --port 8000 --reload
-
 .PHONY: up
-up: check-docker ## Start all services via Docker Compose
+up: check-docker ## Start all services (API on http://localhost:8000)
 	docker compose up
 
 .PHONY: down
-down: check-docker ## Stop all services
+down: check-docker ## Stop and remove all containers
 	docker compose down
 
 .PHONY: extract
