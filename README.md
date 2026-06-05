@@ -109,6 +109,7 @@ real databases, queues, or API keys.
 | HTML Parsing | BeautifulSoup4 + lxml | Robust content extraction |
 | LLM | OpenAI gpt-4o | Strong instruction following, structured output |
 | Geo Discovery | Overpass API (OSM) | Free, globally comprehensive, coordinate-native |
+| Web Search | DuckDuckGo Search | No API key needed, good coverage |
 | Frontend | React 18 + Vite | Lightweight, fast dev loop |
 | Containerisation | Docker Compose v2 | Single-command local deployment |
 | Code Quality | ruff + ty + pre-commit | Fast linting, type checking, git hooks |
@@ -122,7 +123,13 @@ real databases, queues, or API keys.
 **Why:** Allows swapping any adapter (e.g. replace OpenAI with another LLM, or PostgreSQL with SQLite for tests) without touching business logic. The cost is more boilerplate up front.
 
 ### Overpass API (OpenStreetMap) as primary discovery
-**Why:** Free, no rate-limit key needed, globally comprehensive for `landuse=quarry`. Trade-off: OSM data can lag real-world changes by hours to days.
+**Why:** Free, no rate-limit key needed, globally comprehensive for `landuse=quarry`. Trade-off: OSM data can lag real-world changes by hours to days. The `OVERPASS_URL` env var lets you point to a private instance to avoid public rate limits.
+
+### DuckDuckGo for web search enrichment
+**Why:** No API key, no quota, scraping-friendly. Used to find operator sites and registry pages for each candidate. Trade-off: results are non-deterministic and can vary between runs.
+
+### urllib over httpx for Overpass requests
+**Why:** Several public Overpass instances reject httpx's default headers (connection keep-alive, accept-encoding) while accepting standard urllib requests. Wrapped in `asyncio.to_thread` to stay non-blocking.
 
 ### Explicit abstention over best-guess extraction
 **Why:** A confident wrong answer is worse than no answer. The system sets `value: null` with an `abstain_reason` when evidence is insufficient or stale. This reduces recall but eliminates hallucinated data.
@@ -166,10 +173,33 @@ make eval
 |---|---|---|
 | No JavaScript rendering | Sites with JS-only content return empty text | Add optional Playwright fallback |
 | OSM data lag | Quarries added/closed recently may be missed | Cross-reference BRGM (France) or national open data |
+| Overpass public rate limits | 406/429 after repeated requests from same IP | Set `OVERPASS_URL` to a private instance |
+| DuckDuckGo non-determinism | Search results vary between runs | Cache results per candidate + run_id |
 | Operational status staleness | No real-time business registry access | Integrate SIRENE / Companies House APIs |
 | Language coverage | Prompt tuned for French / English | Language detection + per-language prompt templates |
 | No cross-job deduplication | Same quarry can appear in multiple jobs | Merge by OSM ID or coordinate proximity |
 | Cost unpredictability | Variable page count per quarry | Pre-estimate cost before running; show user a quote |
+
+---
+
+## Debug Endpoints
+
+Available at `http://localhost:8000/docs` once the stack is running.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/health` | Check postgres, redis, worker connectivity |
+| `GET /api/discovery?lat=&lon=&radius_km=` | Run Overpass discovery and return raw candidates |
+| `GET /api/scrape?url=` | Fetch and clean a single URL through the polite scraper |
+
+Examples:
+```sh
+# Discover quarries around Paris
+curl "http://localhost:8000/api/discovery?lat=48.8566&lon=2.3522&radius_km=50"
+
+# Scrape a page
+curl "http://localhost:8000/api/scrape?url=https://infoterre.brgm.fr"
+```
 
 ---
 

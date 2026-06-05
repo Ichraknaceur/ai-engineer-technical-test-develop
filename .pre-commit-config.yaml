@@ -24,7 +24,7 @@ repos:
     rev: v2.4.2
     hooks:
       - id: codespell
-        args: ["-L", "carriere,carrieres,complet,reste,valide"]
+        args: ["-L", "carriere,carrieres,complet,reste,valide,registre,presse,annuaire"]
         exclude: >
           (?x)^(
             \.pre-commit-cache/|
