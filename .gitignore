@@ -12,6 +12,7 @@ build/
 # Tests
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # Linters
