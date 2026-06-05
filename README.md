@@ -107,7 +107,7 @@ real databases, queues, or API keys.
 | Database | PostgreSQL 16 + JSONB | Flexible schema storage |
 | HTTP Client | httpx (async) | Polite crawling with timeout control |
 | HTML Parsing | BeautifulSoup4 + lxml | Robust content extraction |
-| LLM | OpenAI gpt-4o | Strong instruction following, structured output |
+| LLM | OpenAI gpt-4o (swappable) | Provider-agnostic — swap to Claude/Mistral via `ILLMProvider` |
 | Geo Discovery | Overpass API (OSM) | Free, globally comprehensive, coordinate-native |
 | Web Search | DuckDuckGo Search | No API key needed, good coverage |
 | Frontend | React 18 + Vite | Lightweight, fast dev loop |
@@ -127,6 +127,9 @@ real databases, queues, or API keys.
 
 ### DuckDuckGo for web search enrichment
 **Why:** No API key, no quota, scraping-friendly. Used to find operator sites and registry pages for each candidate. Trade-off: results are non-deterministic and can vary between runs.
+
+### Provider-agnostic LLM extractor
+**Why:** `LLMExtractor` takes any object satisfying `ILLMProvider` (OpenAI, Claude, Mistral). Swapping the model is one line — `LLMExtractor(provider=ClaudeProvider())` — without touching extraction logic, prompts, or tests. Current default: OpenAI gpt-4o.
 
 ### urllib over httpx for Overpass requests
 **Why:** Several public Overpass instances reject httpx's default headers (connection keep-alive, accept-encoding) while accepting standard urllib requests. Wrapped in `asyncio.to_thread` to stay non-blocking.
@@ -191,14 +194,59 @@ Available at `http://localhost:8000/docs` once the stack is running.
 | `GET /api/health` | Check postgres, redis, worker connectivity |
 | `GET /api/discovery?lat=&lon=&radius_km=` | Run Overpass discovery and return raw candidates |
 | `GET /api/scrape?url=` | Fetch and clean a single URL through the polite scraper |
+| `GET /api/extract?url=` | Scrape + LLM extraction on a single URL (uses OpenAI credits) |
 
-Examples:
 ```sh
-# Discover quarries around Paris
-curl "http://localhost:8000/api/discovery?lat=48.8566&lon=2.3522&radius_km=50"
+# Discover quarries around Lyon
+curl "http://localhost:8000/api/discovery?lat=45.7640&lon=4.8357&radius_km=30"
 
-# Scrape a page
-curl "http://localhost:8000/api/scrape?url=https://infoterre.brgm.fr"
+# Scrape a page (verify content before spending LLM tokens)
+curl "http://localhost:8000/api/scrape?url=https://www.vicat.fr/nos-solutions/nos-expertises/granulats"
+
+# Full scrape + extraction
+curl "http://localhost:8000/api/extract?url=https://www.vicat.fr/nos-solutions/nos-expertises/granulats"
+```
+
+### Real extraction example
+
+`GET /api/extract?url=https://www.vicat.fr/nos-solutions/nos-expertises/granulats`
+
+```json
+{
+  "url": "https://www.vicat.fr/nos-solutions/nos-expertises/granulats",
+  "trust_tier": "official",
+  "word_count": 1888,
+  "scrape_error": null,
+  "extraction": {
+    "official_name": {
+      "value": "Granulats Vicat",
+      "confidence": 0.9,
+      "evidence": [{ "source_id": "src_5e098b81", "char_start": 0, "char_end": 15, "quote": "Granulats Vicat" }]
+    },
+    "site_type": {
+      "value": "Quarry",
+      "confidence": 0.9,
+      "evidence": [{ "source_id": "src_5e098b81", "char_start": 0, "char_end": 15, "quote": "Granulats Vicat" }]
+    },
+    "description": {
+      "value": "Granulats Vicat produces and commercializes more than 24 million tonnes of aggregates annually.",
+      "confidence": 0.8,
+      "evidence": [{ "source_id": "src_5e098b81", "char_start": 187, "char_end": 267, "quote": "Vicat produit et commercialise plus de 24 millions de tonnes de granulats." }]
+    },
+    "operational_status": {
+      "value": "active",
+      "confidence": 0.9,
+      "evidence": [{ "source_id": "src_5e098b81", "char_start": 187, "char_end": 267, "quote": "Vicat produit et commercialise plus de 24 millions de tonnes de granulats." }]
+    },
+    "materials_produced": [
+      { "value": "sand",  "confidence": 0.7, "evidence": [...] },
+      { "value": "gravel","confidence": 0.7, "evidence": [...] }
+    ],
+    "certifications": [],
+    "location_verification": { "is_verified": false, "confidence": 0, "extracted_city": null, "method": "none" }
+  },
+  "metrics": { "model": "gpt-4o", "tokens_in": 3396, "tokens_out": 564, "usd_cost": 0.0254, "latency_ms": 5738 }
+}
 ```
 
 ---
