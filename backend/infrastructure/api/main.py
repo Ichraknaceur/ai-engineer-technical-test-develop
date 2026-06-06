@@ -11,7 +11,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.infrastructure.api.exceptions.handlers import register_exception_handlers
-from backend.infrastructure.api.routers import discovery, extractor, health, jobs, scraper, sites
+from backend.infrastructure.api.routers import (
+    discovery,
+    extractor,
+    health,
+    jobs,
+    pipeline_test,
+    scraper,
+    sites,
+)
 
 
 @asynccontextmanager
@@ -42,3 +50,4 @@ app.include_router(sites.router, prefix="/api")
 app.include_router(discovery.router, prefix="/api")
 app.include_router(scraper.router, prefix="/api")
 app.include_router(extractor.router, prefix="/api")
+app.include_router(pipeline_test.router, prefix="/api")

@@ -1,5 +1,7 @@
 """PostgreSQL implementation of ISiteRepository using SQLAlchemy async."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +33,8 @@ class PostgresSiteRepository:
         )
         model = SiteModel(
             id=record.site_id,
-            job_id=record.run_metadata.get("run_id", ""),
+            job_id=record.run_metadata.get("job_id") or record.run_metadata.get("run_id", ""),
+            created_at=datetime.now(UTC),
             schema_version=record.schema_version,
             latitude=record.input.get("latitude", 0.0),
             longitude=record.input.get("longitude", 0.0),

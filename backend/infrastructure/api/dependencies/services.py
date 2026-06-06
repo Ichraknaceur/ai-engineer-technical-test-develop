@@ -13,14 +13,14 @@ from backend.application.services.site_service import SiteService
 from backend.infrastructure.api.dependencies.db import DbSession
 from backend.infrastructure.db.repositories.job_repository import PostgresJobRepository
 from backend.infrastructure.db.repositories.site_repository import PostgresSiteRepository
-from backend.infrastructure.worker.stub_queue import StubTaskQueue
+from backend.infrastructure.worker.celery_queue import CeleryTaskQueue
 
 
 def get_job_service(session: DbSession) -> JobService:
-    """Build a JobService wired to Postgres and the stub task queue."""
+    """Build a JobService wired to Postgres and the Celery task queue."""
     return JobService(
         job_repo=PostgresJobRepository(session),
-        queue=StubTaskQueue(),
+        queue=CeleryTaskQueue(),
     )
 
 

@@ -179,7 +179,9 @@ make eval
 | Overpass public rate limits | 406/429 after repeated requests from same IP | Set `OVERPASS_URL` to a private instance |
 | DuckDuckGo non-determinism | Search results vary between runs | Cache results per candidate + run_id |
 | Operational status staleness | No real-time business registry access | Integrate SIRENE / Companies House APIs |
-| Language coverage | Prompt tuned for French / English | Language detection + per-language prompt templates |
+| Search relevance is FR/EN only | Quarry-signal keywords + search queries cover French and English; sites in DE/ES/IT may be filtered out | Add per-language keyword sets + localised search queries driven by the country of the coordinates |
+| LLM prompt tuned for FR/EN | Extraction prompt examples are French/English | Language detection + per-language prompt templates |
+| Weak evidence alignment | LLM may cite a nearby span instead of the exact value (e.g. materials grounded on the site name) | Validate that each field's quote actually contains the extracted value; abstain otherwise |
 | No cross-job deduplication | Same quarry can appear in multiple jobs | Merge by OSM ID or coordinate proximity |
 | Cost unpredictability | Variable page count per quarry | Pre-estimate cost before running; show user a quote |
 
@@ -192,13 +194,16 @@ Available at `http://localhost:8000/docs` once the stack is running.
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/health` | Check postgres, redis, worker connectivity |
-| `GET /api/discovery?lat=&lon=&radius_km=` | Run Overpass discovery and return raw candidates |
+| `GET /api/discovery?lat=&lon=&radius_km=&enrich=&limit=` | Overpass discovery, optionally enriched with web search URLs |
 | `GET /api/scrape?url=` | Fetch and clean a single URL through the polite scraper |
 | `GET /api/extract?url=` | Scrape + LLM extraction on a single URL (uses OpenAI credits) |
 
 ```sh
-# Discover quarries around Lyon
+# Discover quarries around Lyon (raw Overpass candidates)
 curl "http://localhost:8000/api/discovery?lat=45.7640&lon=4.8357&radius_km=30"
+
+# Discover + enrich the first 5 candidates with web search source URLs
+curl "http://localhost:8000/api/discovery?lat=45.764&lon=4.835&radius_km=30&enrich=true&limit=5"
 
 # Scrape a page (verify content before spending LLM tokens)
 curl "http://localhost:8000/api/scrape?url=https://www.vicat.fr/nos-solutions/nos-expertises/granulats"
@@ -206,6 +211,37 @@ curl "http://localhost:8000/api/scrape?url=https://www.vicat.fr/nos-solutions/no
 # Full scrape + extraction
 curl "http://localhost:8000/api/extract?url=https://www.vicat.fr/nos-solutions/nos-expertises/granulats"
 ```
+
+### Discovery + web search example
+
+`GET /api/discovery?lat=45.764&lon=4.835&radius_km=30&enrich=true&limit=5`
+
+```json
+{
+  "total": 78,
+  "enriched": 1,
+  "candidates": [
+    { "name": "Anciennes Carrières des Torrelles", "osm_id": "node/1531294920", "source_urls": [] },
+    {
+      "name": "Eco Ressources",
+      "osm_id": "node/10069563951",
+      "source_urls": [
+        "https://www.georisques.gouv.fr/webappReport/ws/installations/document/7390YAf...",
+        "https://www.georisques.gouv.fr/webappReport/ws/installations/inspection/q24ZNKG..."
+      ]
+    },
+    { "name": "Carrière de Mions", "osm_id": "way/38965815", "source_urls": [] }
+  ]
+}
+```
+
+The relevance filter keeps only sources carrying an **unambiguous** quarry signal
+(`granulats`, `calcaire`, `quarry`, a registry domain like `georisques.gouv.fr`...).
+The French word *carrière* alone (quarry **or** career) is deliberately rejected,
+which previously let job boards, dictionaries, and retirement sites through.
+The trade-off is lower recall: a real quarry with no findable authoritative source
+yields `source_urls: []` and the pipeline abstains rather than attaching junk —
+consistent with the brief's "say so when you can't tell" principle.
 
 ### Real extraction example
 
@@ -229,25 +265,71 @@ curl "http://localhost:8000/api/extract?url=https://www.vicat.fr/nos-solutions/n
       "evidence": [{ "source_id": "src_5e098b81", "char_start": 0, "char_end": 15, "quote": "Granulats Vicat" }]
     },
     "description": {
-      "value": "Granulats Vicat produces and commercializes more than 24 million tonnes of aggregates annually.",
-      "confidence": 0.8,
-      "evidence": [{ "source_id": "src_5e098b81", "char_start": 187, "char_end": 267, "quote": "Vicat produit et commercialise plus de 24 millions de tonnes de granulats." }]
+      "value": "Matière première naturelle indispensable pour la fabrication de béton, nous produisons plusieurs millions de tonnes de granulats par an.",
+      "confidence": 0.9,
+      "evidence": [{ "source_id": "src_5e098b81", "char_start": 108, "char_end": 197, "quote": "...nous produisons plusieurs millions de tonnes de granulats par an." }]
     },
     "operational_status": {
       "value": "active",
       "confidence": 0.9,
-      "evidence": [{ "source_id": "src_5e098b81", "char_start": 187, "char_end": 267, "quote": "Vicat produit et commercialise plus de 24 millions de tonnes de granulats." }]
+      "evidence": [{ "source_id": "src_5e098b81", "char_start": 108, "char_end": 197, "quote": "...nous produisons plusieurs millions de tonnes de granulats par an." }]
     },
     "materials_produced": [
-      { "value": "sand",  "confidence": 0.7, "evidence": [...] },
-      { "value": "gravel","confidence": 0.7, "evidence": [...] }
+      { "value": "sand",   "confidence": 0.9, "evidence": [...] },
+      { "value": "gravel", "confidence": 0.9, "evidence": [...] }
     ],
     "certifications": [],
     "location_verification": { "is_verified": false, "confidence": 0, "extracted_city": null, "method": "none" }
   },
-  "metrics": { "model": "gpt-4o", "tokens_in": 3396, "tokens_out": 564, "usd_cost": 0.0254, "latency_ms": 5738 }
+  "metrics": { "model": "gpt-4o", "tokens_in": 3396, "tokens_out": 578, "usd_cost": 0.0257, "latency_ms": 5253 }
 }
 ```
+
+> **Grounding note:** `materials_produced` (sand/gravel) is correctly extracted but
+> its evidence points to the site name rather than the exact material mention — the
+> model inferred the materials and cited a nearby span. Tightening evidence↔quote
+> alignment (reject a field when its quote does not contain the value) is tracked as
+> future work in [Known Limitations](#known-limitations).
+
+### Full job example — multi-source reconciliation
+
+A complete job (`POST /api/jobs` → worker → `GET /api/sites/:id`) around Lyon
+produced this persisted record. Note that `materials_produced` merges values from
+**two different sources**: the operator site (`src_f724904b`) and a registry page
+(`src_ea0e494b`).
+
+```json
+{
+  "site_id": "5da202eaa5dd4",
+  "schema_version": "2.0.0",
+  "input": { "latitude": 45.764, "longitude": 4.835, "radius_km": 30 },
+  "extraction": {
+    "official_name": {
+      "value": "GROUPE Gachet",
+      "confidence": 0.9,
+      "evidence": [{ "source_id": "src_f724904b", "char_start": 9, "char_end": 22, "quote": "GROUPE Gachet" }]
+    },
+    "description": {
+      "value": "Leader spécialisé dans les granulats et béton, le GROUPE Gachet évolue depuis 1931...",
+      "confidence": 0.9,
+      "evidence": [{ "source_id": "src_f724904b", "char_start": 23, "char_end": 276, "quote": "Leader spécialisé dans les granulats et béton..." }]
+    },
+    "certifications": [
+      { "value": "NF", "confidence": 0.9, "evidence": [{ "source_id": "src_f724904b", "char_start": 515, "char_end": 517, "quote": "NF" }] }
+    ],
+    "materials_produced": [
+      { "value": "granulats", "confidence": 0.9, "evidence": [{ "source_id": "src_f724904b", "char_start": 23, "char_end": 32, "quote": "granulats" }] },
+      { "value": "béton",     "confidence": 0.9, "evidence": [{ "source_id": "src_f724904b", "char_start": 37, "char_end": 42, "quote": "béton" }] },
+      { "value": "sand",      "confidence": 0.9, "evidence": [{ "source_id": "src_ea0e494b", "char_start": 276, "char_end": 336, "quote": "Exploitation de gravières et sablières, extraction d'argiles et de kaolin" }] },
+      { "value": "clay",      "confidence": 0.9, "evidence": [{ "source_id": "src_ea0e494b", "char_start": 276, "char_end": 336, "quote": "Exploitation de gravières et sablières, extraction d'argiles et de kaolin" }] }
+    ]
+  }
+}
+```
+
+After filtering, this job persisted **5 clean records** (operators with authoritative
+sources) instead of flooding the database with empty abstentions for all 78 raw OSM
+candidates.
 
 ---
 
