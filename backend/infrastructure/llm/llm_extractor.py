@@ -157,7 +157,13 @@ class LLMExtractor:
                 _SYSTEM_PROMPT, user_prompt
             )
         except Exception as exc:
-            logger.error("LLM provider %s failed for %s: %s", self._provider.model, page.url, exc)
+            logger.error(
+                "LLM provider %s failed for %s: %s — type: %s",
+                self._provider.model,
+                page.url,
+                exc,
+                type(exc).__name__,
+            )
             return _abstain_all(self._provider.model, self._prompt_hash, reason="llm_api_error")
 
         latency_ms = int((time.monotonic() - t0) * 1000)

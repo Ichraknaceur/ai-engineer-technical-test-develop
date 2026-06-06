@@ -33,6 +33,17 @@ _ALLOWED_SCHEMES = {"http", "https"}
 _MAX_WORDS = 8_000
 _REQUEST_TIMEOUT = 15.0
 
+# Domains that serve generic/non-quarry-specific content — skip before fetching.
+_USELESS_URL_PATTERNS = re.compile(
+    r"(larousse\.fr|dictionnaire|wikipedia\.org|wikidata\.org|"
+    r"rechercher-une-carriere|/search[/?]|google\.|bing\.com|"
+    r"duckduckgo\.com|yahoo\.com|"
+    r"lassuranceretraite\.fr|pole-emploi\.fr|indeed\.com|"
+    r"accenture\.com|capgemini\.com|/careers?[/?]|/emploi[/?]|"
+    r"pagesjaunes\.fr)",
+    re.IGNORECASE,
+)
+
 # Domains that indicate official operator sites vs directories
 _DIRECTORY_PATTERNS = re.compile(
     r"(annuaire|registre|repertoire|directory|brgm|georisques|societe\.com|"
@@ -43,6 +54,21 @@ _NEWS_PATTERNS = re.compile(
     r"(actu|news|presse|journal|lemonde|lefigaro|ouest-france|20minutes)",
     re.IGNORECASE,
 )
+
+
+def is_useful_url(url: str) -> bool:
+    """Return False for URLs known to serve generic non-quarry content.
+
+    Filters out dictionaries, generic search pages, Wikipedia, and social
+    networks before spending HTTP requests or LLM tokens on them.
+
+    Args:
+        url: The URL to check.
+
+    Returns:
+        True if the URL is worth fetching, False otherwise.
+    """
+    return not bool(_USELESS_URL_PATTERNS.search(url))
 
 
 def _classify_trust_tier(url: str) -> TrustTier:
