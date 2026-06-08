@@ -59,3 +59,14 @@ class JobService:
             The Job if it exists, None otherwise.
         """
         return await self._job_repo.get(job_id)
+
+    async def list(self, limit: int = 50) -> list[Job]:
+        """Return the most recent jobs, newest first.
+
+        Args:
+            limit: Maximum number of jobs to return.
+
+        Returns:
+            A list of Job entities ordered by creation time descending.
+        """
+        return await self._job_repo.list(limit)

@@ -56,6 +56,20 @@ services:
       - .:/app
       - venv:/app/.venv
 
+  frontend:
+    build: ./frontend
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - frontend_modules:/app/node_modules
+
 volumes:
   postgres_data:
   venv:
+  frontend_modules:
