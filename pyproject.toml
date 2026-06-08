@@ -43,6 +43,7 @@ dev = [
     "ty>=0.0.1a6",
     "pre-commit>=4.0.0",
     "httpx2>=2.3.0",
+    "testcontainers[postgres]>=4.0.0",
 ]
 
 # ── Ruff ──────────────────────────────────────────────────────────────────────
@@ -63,6 +64,9 @@ known-first-party = ["backend"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: tests that require a real PostgreSQL container (needs Docker)",
+]
 addopts = [
     "--cov=backend",
     "--cov-report=term-missing",

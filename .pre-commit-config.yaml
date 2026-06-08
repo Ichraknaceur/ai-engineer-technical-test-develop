@@ -17,6 +17,8 @@ repos:
       - id: fix-byte-order-marker
       - id: mixed-line-ending
       - id: name-tests-test
+        # The eval harness lives under tests/ but is not a pytest module.
+        exclude: ^tests/eval/(score|scorer)\.py$
       - id: trailing-whitespace
       - id: end-of-file-fixer
 
@@ -24,7 +26,7 @@ repos:
     rev: v2.4.2
     hooks:
       - id: codespell
-        args: ["-L", "carriere,carrieres,complet,reste,valide,registre,presse,annuaire,ressources,groupe"]
+        args: ["-L", "carriere,carrieres,complet,reste,valide,registre,presse,annuaire,ressources,groupe,agriculteurs"]
         exclude: >
           (?x)^(
             \.pre-commit-cache/|

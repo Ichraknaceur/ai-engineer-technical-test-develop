@@ -99,16 +99,24 @@ test: check-uv ## Run full test suite with coverage
 	uv run -- pytest
 
 .PHONY: test-unit
-test-unit: check-uv ## Run unit tests only
+test-unit: check-uv ## Run unit tests only (no Docker needed)
 	uv run -- pytest tests/unit/ -v
+
+.PHONY: test-integration
+test-integration: check-uv check-docker ## Run integration tests (spins up a PostgreSQL container)
+	uv run -- pytest tests/integration/ -v --no-cov
 
 .PHONY: diff-cover
 diff-cover: check-uv test coverage.xml ## Show coverage diff against main branch
 	uv run -- diff-cover coverage.xml
 
 .PHONY: eval
-eval: check-uv install ## Run evaluation against ground truth
+eval: check-uv install ## Score the extractor against ground truth (live, needs OPENAI_API_KEY)
 	uv run -- python tests/eval/score.py
+
+.PHONY: eval-mock
+eval-mock: check-uv install ## Offline self-test of the eval harness (no API key, no cost)
+	uv run -- python tests/eval/score.py --mock
 
 # ── Documentation ─────────────────────────────────────────────────────────────
 

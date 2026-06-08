@@ -21,11 +21,12 @@ cp .env.example .env
 # 3. Build Docker images
 make bootstrap
 
-# 4. Start all services (postgres, redis, backend, worker)
+# 4. Start all services (postgres, redis, backend, worker, frontend)
 make up
-# → API + Swagger UI: http://localhost:8000/docs
+# → Web UI:          http://localhost:3000
+# → API + Swagger:   http://localhost:8000/docs
 
-# 5. Run an extraction from the CLI
+# 5. Run an extraction from the CLI (or use the UI)
 make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 ```
 
@@ -38,48 +39,45 @@ make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 ### Components & Data Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Browser                                                        │
-│  React UI  ──── POST /api/jobs ────────────────────────────►   │
-│            ◄─── job_id ─────────────────────────────────────   │
-│            ──── GET  /api/jobs/:id (poll every 2s) ─────────►  │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │   FastAPI Backend   │
-                    │   (Python 3.12)     │
-                    └──────────┬──────────┘
-                               │ enqueue
-                    ┌──────────▼──────────┐
-                    │   Redis (queue)     │
-                    └──────────┬──────────┘
-                               │ pick up
-                    ┌──────────▼──────────┐
-                    │   Celery Worker     │
-                    └──┬────────┬─────────┘
-                       │        │
-          ┌────────────▼─┐  ┌───▼────────────┐
-          │  Discovery   │  │    Scraper     │
-          │  Overpass    │  │  httpx + BS4   │
-          │  API (OSM)   │  │  robots.txt    │
-          └────────────┬─┘  └───┬────────────┘
-                       │        │
-                    ┌──▼────────▼──────────┐
-                    │   LLM Extraction     │
-                    │   OpenAI gpt-4o      │
-                    │   grounding +        │
-                    │   abstention         │
-                    └──────────┬───────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │   Reconciliation    │
-                    │   + Validation      │
-                    │   JSON Schema v2    │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │    PostgreSQL       │
-                    └─────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  React UI  (:3000)                                                 │
+│   POST /api/jobs → job_id   ·   poll GET /api/jobs(/:id) every 2s  │
+│   browse GET /api/sites(/:id) with grounded evidence & provenance  │
+└───────────────────────────────┬──────────────────────────────────-┘
+                                │  REST
+                     ┌──────────▼──────────┐
+                     │   FastAPI Backend   │  (:8000)
+                     └──────────┬──────────┘
+                                │ enqueue (Redis)
+                     ┌──────────▼──────────┐
+                     │   Celery Worker     │   ExtractionPipeline.run()
+                     └──────────┬──────────┘
+                                │
+   ┌────────────────────────────┼────────────────────────────────┐
+   ▼                            ▼                                 ▼
+┌──────────────┐   then   ┌──────────────┐   per URL   ┌──────────────────┐
+│  Discovery   │ ───────► │  Web search  │ ──────────► │     Scraper      │
+│  Overpass    │ candidates│  DuckDuckGo  │  source URLs│  httpx + BS4     │
+│  (OSM bbox)  │          │  relevance   │             │  robots.txt+jitter│
+└──────────────┘          └──────────────┘             └────────┬─────────┘
+                                                                │ cleaned text
+                                                       ┌────────▼─────────┐
+                                                       │  LLM Extraction  │
+                                                       │  OpenAI gpt-4o   │
+                                                       │  grounding +     │
+                                                       │  abstention      │
+                                                       └────────┬─────────┘
+                                                                │ per-source fields
+                                                       ┌────────▼─────────┐
+                                                       │ Reconcile +      │
+                                                       │ Validate (schema │
+                                                       │ v2.0.0)          │
+                                                       └────────┬─────────┘
+                                                                │ valid record
+                                                       ┌────────▼─────────┐
+                                                       │   PostgreSQL     │
+                                                       │   (JSONB)        │
+                                                       └──────────────────┘
 ```
 
 ### Hexagonal Architecture (Ports & Adapters)
@@ -150,23 +148,61 @@ real databases, queues, or API keys.
 
 ## Evaluation Strategy
 
-### Ground truth
-A small set of known quarries in `tests/eval/ground_truth.json`, manually verified against public registries.
+### Approach
 
-### Metrics per field
+The eval scores the **LLM extractor** against a hand-verified ground-truth set
+(`tests/eval/ground_truth.json`). Crucially, each entry carries a **fixed
+cleaned-text excerpt** (as the scraper would produce) rather than a live URL —
+so the score is **reproducible** and isolates extraction quality from live web
+variance (Overpass/DuckDuckGo non-determinism).
 
-| Metric | Description |
+The set deliberately includes **negative cases** to test the core principle
+"say so when you can't tell":
+
+| Entry | What it tests |
 |---|---|
-| **Precision** | Extracted value matches the expected value (exact or fuzzy) |
-| **Abstention rate** | How often the system abstains vs. hallucinating when evidence is absent |
-| **Coverage** | Percentage of expected fields that are non-null |
-| **Grounding rate** | Percentage of non-null fields backed by at least one evidence quote |
+| Granulats Vicat, GROUPE Gachet, Indiana Limestone | Active operators — name, type, status, materials |
+| Ancienne carrière de la Tuilerie | A **closed** quarry → `operational_status: inactive` |
+| Job board page ("Option Carrière") | An **irrelevant** page → must **abstain** on every field |
 
-### Run the evaluation
+### Metrics
+
+| Metric | Definition |
+|---|---|
+| **Name / type / status accuracy** | Fuzzy (name) or exact (type/status) match vs. expected; a correct abstention counts as correct |
+| **Materials F1** | Set-based precision/recall with FR/EN synonym collapsing (granulats↔aggregate, sable↔sand…) |
+| **Abstention rate** | Share of fields where the model returned `null` rather than guessing |
+| **Grounding rate** | Share of non-null fields backed by ≥1 evidence quote |
+
+### Results (gpt-4o, live)
+
+```
+Name accuracy        100.0%
+Site-type accuracy   100.0%
+Status accuracy      100.0%
+Materials F1         0.79
+Abstention rate      20.0%
+Grounding rate       100.0%
+```
+
+**Reading the numbers.** Scalar fields are extracted reliably, and the model
+correctly abstains on the irrelevant job-board page (driving the 20% abstention
+rate) and labels the disused quarry `inactive`. Materials F1 (0.79) is the
+weakest axis: the model occasionally splits or merges material categories (e.g.
+"crushed stone" + "building stone" vs. a single "limestone"), which the synonym
+map only partially absorbs. Grounding is 100% — every emitted value cites a
+quote — though evidence-to-value *alignment* can still be loose (see
+[Known Limitations](#known-limitations)).
+
+### Run it
 
 ```sh
-make eval
+make eval        # live scoring against OpenAI (needs OPENAI_API_KEY)
+make eval-mock   # offline self-test of the scoring harness (no key, no cost)
 ```
+
+The scoring logic itself is covered by 17 unit tests (`tests/unit/eval/`), so a
+regression in the metric maths is caught without spending tokens.
 
 ---
 
@@ -336,15 +372,29 @@ candidates.
 ## Development
 
 ```sh
-make bootstrap     # First-time setup: copy .env, build Docker images
-make up            # Start all services (http://localhost:8000)
-make down          # Stop all containers
-make test          # Full test suite with coverage
-make lint          # Ruff linting
-make typecheck     # ty type checking (domain + ports + application)
-make precommit     # Run all pre-commit hooks
-make docs-serve    # Preview docs at http://localhost:8090
+make bootstrap          # First-time setup: copy .env, build Docker images
+make up                 # Start all services (http://localhost:8000, UI on :3000)
+make down               # Stop all containers
+make test               # Full test suite with coverage
+make test-unit          # Unit tests only (no Docker needed)
+make test-integration   # Integration tests (spins up a PostgreSQL container)
+make eval               # Score the extractor against ground truth (needs OPENAI_API_KEY)
+make eval-mock          # Offline self-test of the eval harness
+make lint               # Ruff linting
+make typecheck          # ty type checking (domain + ports + application)
+make precommit          # Run all pre-commit hooks
 ```
+
+### Test suite
+
+| Layer | Location | What it covers | Count |
+|---|---|---|---|
+| Unit | `tests/unit/` | Domain, services, adapters (mocked I/O), eval scorer | 132 |
+| Integration | `tests/integration/` | Repositories + API against a real PostgreSQL (testcontainers) | 16 |
+| Eval | `tests/eval/` | Extractor scored against ground truth | harness + 17 scorer tests |
+
+External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests —
+no network calls, no LLM cost.
 
 ---
 
