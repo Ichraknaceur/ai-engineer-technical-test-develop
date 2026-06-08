@@ -58,6 +58,13 @@ class PostgresJobRepository:
         model.completed_at = job.completed_at
         await self._session.commit()
 
+    async def list(self, limit: int = 50) -> list[Job]:
+        """Return the most recent jobs, newest first."""
+        result = await self._session.execute(
+            select(JobModel).order_by(JobModel.created_at.desc()).limit(limit)
+        )
+        return [self._to_entity(m) for m in result.scalars()]
+
     @staticmethod
     def _to_entity(model: JobModel) -> Job:
         return Job(

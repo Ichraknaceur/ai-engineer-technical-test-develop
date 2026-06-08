@@ -1,6 +1,8 @@
 """Jobs router — submit extraction jobs and poll their status."""
 
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from backend.domain.entities.job import JobStatus
@@ -69,6 +71,16 @@ async def create_job(body: JobCreateRequest, service: JobServiceDep) -> JobRespo
     )
     job = await service.submit(coordinates, body.max_usd_cost)
     return _job_response(job)
+
+
+@router.get("/jobs", response_model=list[JobResponse])
+async def list_jobs(
+    service: JobServiceDep,
+    limit: Annotated[int, Query(ge=1, le=100, description="Max jobs to return")] = 50,
+) -> list[JobResponse]:
+    """List recent extraction jobs, newest first."""
+    jobs = await service.list(limit)
+    return [_job_response(j) for j in jobs]
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
