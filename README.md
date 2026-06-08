@@ -43,8 +43,8 @@ make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 │  React UI  (:3000)                                                 │
 │   POST /api/jobs → job_id   ·   poll GET /api/jobs(/:id) every 2s  │
 │   browse GET /api/sites(/:id) with grounded evidence & provenance  │
-└───────────────────────────────┬──────────────────────────────────┘
-                                 │  REST
+└───────────────────────────────┬──────────────────────────────────-┘
+                                │  REST
                      ┌──────────▼──────────┐
                      │   FastAPI Backend   │  (:8000)
                      └──────────┬──────────┘
@@ -84,10 +84,10 @@ make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 
 ```
 backend/
-├── domain/          # Pure business logic, zero external dependencies
-├── ports/           # Python Protocols (interfaces), inbound + outbound
-├── application/     # Use cases, orchestrate domain through ports
-└── infrastructure/  # Adapters, FastAPI, PostgreSQL, Redis, OpenAI, httpx
+├── domain/          # Pure business logic : zero external dependencies
+├── ports/           # Python Protocols (interfaces) : inbound + outbound
+├── application/     # Use cases : orchestrate domain through ports
+└── infrastructure/  # Adapters : FastAPI, PostgreSQL, Redis, OpenAI, httpx
 ```
 
 The domain never imports from infrastructure. Every external dependency is
@@ -131,7 +131,7 @@ real databases, queues, or API keys.
 **Why:** No API key, no quota, scraping-friendly. Used to find operator sites and registry pages for each candidate. Trade-off: results are non-deterministic and can vary between runs.
 
 ### Provider-agnostic LLM extractor
-**Why:** `LLMExtractor` takes any object satisfying `ILLMProvider` (OpenAI, Claude, Mistral). Swapping the model is one line, `LLMExtractor(provider=ClaudeProvider())`, without touching extraction logic, prompts, or tests. Current default: OpenAI gpt-4o.
+**Why:** `LLMExtractor` takes any object satisfying `ILLMProvider` (OpenAI, Claude, Mistral). Swapping the model is one line `LLMExtractor(provider=ClaudeProvider())` without touching extraction logic, prompts, or tests. Current default: OpenAI gpt-4o.
 
 ### urllib over httpx for Overpass requests
 **Why:** Several public Overpass instances reject httpx's default headers (connection keep-alive, accept-encoding) while accepting standard urllib requests. Wrapped in `asyncio.to_thread` to stay non-blocking.
@@ -165,7 +165,7 @@ The set deliberately includes **negative cases** to test the core principle
 
 | Entry | What it tests |
 |---|---|
-| Granulats Vicat, GROUPE Gachet, Indiana Limestone | Active operators, name, type, status, materials |
+| Granulats Vicat, GROUPE Gachet, Indiana Limestone | Active operators : name, type, status, materials |
 | Ancienne carrière de la Tuilerie | A **closed** quarry → `operational_status: inactive` |
 | Job board page ("Option Carrière") | An **irrelevant** page → must **abstain** on every field |
 
@@ -208,7 +208,7 @@ make eval-mock   # offline self-test of the scoring harness (no key, no cost)
 The scoring logic itself is covered by 17 unit tests (`tests/unit/eval/`), so a
 regression in the metric maths is caught without spending tokens.
 
-> 📖 **Deep dive:** [`docs/testing.md`](docs/testing.md), full test suite map,
+> 📖 **Deep dive:** [`docs/testing.md`](docs/testing.md) that explain full test suite map,
 > ground-truth format, and eval metrics.
 
 ---
@@ -286,7 +286,7 @@ The relevance filter keeps only sources carrying an **unambiguous** quarry signa
 The French word *carrière* alone (quarry **or** career) is deliberately rejected,
 which previously let job boards, dictionaries, and retirement sites through.
 The trade-off is lower recall: a real quarry with no findable authoritative source
-yields `source_urls: []` and the pipeline abstains rather than attaching junk,
+yields `source_urls: []` and the pipeline abstains rather than attaching junk, 
 consistent with the brief's "say so when you can't tell" principle.
 
 ### Real extraction example
@@ -337,7 +337,7 @@ consistent with the brief's "say so when you can't tell" principle.
 > alignment (reject a field when its quote does not contain the value) is tracked as
 > future work in [Known Limitations](#known-limitations).
 
-### Full job example: multi-source reconciliation
+### Full job example : multi-source reconciliation
 
 A complete job (`POST /api/jobs` → worker → `GET /api/sites/:id`) around Lyon
 produced this persisted record. Note that `materials_produced` merges values from
@@ -403,7 +403,7 @@ make precommit          # Run all pre-commit hooks
 | Integration | `tests/integration/` | Repositories + API against a real PostgreSQL (testcontainers) | 16 |
 | Eval | `tests/eval/` | Extractor scored against ground truth | harness + 17 scorer tests |
 
-External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests,
+External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests with 
 no network calls, no LLM cost.
 
 ---
