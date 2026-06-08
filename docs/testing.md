@@ -8,7 +8,7 @@ make eval               # score the extractor against ground truth (needs OPENAI
 make eval-mock          # offline self-test of the eval harness (no key, no cost)
 ```
 
-External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests —
+External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests,
 no network calls, no LLM cost.
 
 ---
@@ -72,8 +72,8 @@ regardless of live web variance.
 }
 ```
 
-The set includes **negative cases** — a closed quarry (expects `inactive`) and an
-irrelevant job-board page (must abstain on every field) — to test that the system
+The set includes **negative cases**: a closed quarry (expects `inactive`) and an
+irrelevant job-board page (must abstain on every field), to test that the system
 knows when *not* to answer.
 
 **Metrics**

@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - Docker & Docker Compose v2
-- `uv` — [install](https://docs.astral.sh/uv/)
+- `uv`, [install](https://docs.astral.sh/uv/)
 - An OpenAI API key
 
 ---
@@ -21,7 +21,7 @@ This will:
 2. Build the Docker images
 
 Database migrations run automatically on backend startup via the Docker
-entrypoint — no separate migration step is needed.
+entrypoint, no separate migration step is needed.
 
 Then start all services:
 
@@ -42,7 +42,7 @@ make up
 | Service | Build / image | Port |
 |---|---|---|
 | `backend` | root `Dockerfile` (uvicorn) | 8000 |
-| `worker` | root `Dockerfile` (Celery) | — |
+| `worker` | root `Dockerfile` (Celery) |, |
 | `frontend` | `./frontend` (Vite) | 3000 |
 | `postgres` | `postgres:16-alpine` | 5432 (internal) |
 | `redis` | `redis:7-alpine` | 6379 (internal) |
@@ -55,7 +55,7 @@ Copy `.env.example` to `.env` and fill in:
 
 | Variable | Required | Default |
 |---|---|---|
-| `OPENAI_API_KEY` | **Yes** | — |
+| `OPENAI_API_KEY` | **Yes** |, |
 | `DATABASE_URL` | Yes | set in docker-compose |
 | `REDIS_URL` | Yes | set in docker-compose |
 | `OVERPASS_URL` | No | public instance (override to avoid rate limits) |

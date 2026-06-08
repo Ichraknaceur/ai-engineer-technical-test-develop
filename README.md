@@ -43,8 +43,8 @@ make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 │  React UI  (:3000)                                                 │
 │   POST /api/jobs → job_id   ·   poll GET /api/jobs(/:id) every 2s  │
 │   browse GET /api/sites(/:id) with grounded evidence & provenance  │
-└───────────────────────────────┬──────────────────────────────────-┘
-                                │  REST
+└───────────────────────────────┬──────────────────────────────────┘
+                                 │  REST
                      ┌──────────▼──────────┐
                      │   FastAPI Backend   │  (:8000)
                      └──────────┬──────────┘
@@ -84,10 +84,10 @@ make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 
 ```
 backend/
-├── domain/          # Pure business logic — zero external dependencies
-├── ports/           # Python Protocols (interfaces) — inbound + outbound
-├── application/     # Use cases — orchestrate domain through ports
-└── infrastructure/  # Adapters — FastAPI, PostgreSQL, Redis, OpenAI, httpx
+├── domain/          # Pure business logic, zero external dependencies
+├── ports/           # Python Protocols (interfaces), inbound + outbound
+├── application/     # Use cases, orchestrate domain through ports
+└── infrastructure/  # Adapters, FastAPI, PostgreSQL, Redis, OpenAI, httpx
 ```
 
 The domain never imports from infrastructure. Every external dependency is
@@ -109,7 +109,7 @@ real databases, queues, or API keys.
 | Database | PostgreSQL 16 + JSONB | Flexible schema storage |
 | HTTP Client | httpx (async) | Polite crawling with timeout control |
 | HTML Parsing | BeautifulSoup4 + lxml | Robust content extraction |
-| LLM | OpenAI gpt-4o (swappable) | Provider-agnostic — swap to Claude/Mistral via `ILLMProvider` |
+| LLM | OpenAI gpt-4o (swappable) | Provider-agnostic, swap to Claude/Mistral via `ILLMProvider` |
 | Geo Discovery | Overpass API (OSM) | Free, globally comprehensive, coordinate-native |
 | Web Search | DuckDuckGo Search | No API key needed, good coverage |
 | Frontend | React 18 + Vite | Lightweight, fast dev loop |
@@ -131,7 +131,7 @@ real databases, queues, or API keys.
 **Why:** No API key, no quota, scraping-friendly. Used to find operator sites and registry pages for each candidate. Trade-off: results are non-deterministic and can vary between runs.
 
 ### Provider-agnostic LLM extractor
-**Why:** `LLMExtractor` takes any object satisfying `ILLMProvider` (OpenAI, Claude, Mistral). Swapping the model is one line — `LLMExtractor(provider=ClaudeProvider())` — without touching extraction logic, prompts, or tests. Current default: OpenAI gpt-4o.
+**Why:** `LLMExtractor` takes any object satisfying `ILLMProvider` (OpenAI, Claude, Mistral). Swapping the model is one line, `LLMExtractor(provider=ClaudeProvider())`, without touching extraction logic, prompts, or tests. Current default: OpenAI gpt-4o.
 
 ### urllib over httpx for Overpass requests
 **Why:** Several public Overpass instances reject httpx's default headers (connection keep-alive, accept-encoding) while accepting standard urllib requests. Wrapped in `asyncio.to_thread` to stay non-blocking.
@@ -140,7 +140,7 @@ real databases, queues, or API keys.
 **Why:** A confident wrong answer is worse than no answer. The system sets `value: null` with an `abstain_reason` when evidence is insufficient or stale. This reduces recall but eliminates hallucinated data.
 
 ### Per-field grounding (value + evidence co-located)
-**Why:** Forces the LLM to cite its sources inline. A top-level `sources` list is not grounding — it doesn't tell you which source justified which value.
+**Why:** Forces the LLM to cite its sources inline. A top-level `sources` list is not grounding, it doesn't tell you which source justified which value.
 
 ### JSONB storage for the full record
 **Why:** The output schema evolves; JSONB avoids migrations for schema changes. Denormalised columns (`official_name`, `operational_status`) exist only for fast API filtering.
@@ -156,7 +156,7 @@ real databases, queues, or API keys.
 
 The eval scores the **LLM extractor** against a hand-verified ground-truth set
 (`tests/eval/ground_truth.json`). Crucially, each entry carries a **fixed
-cleaned-text excerpt** (as the scraper would produce) rather than a live URL —
+cleaned-text excerpt** (as the scraper would produce) rather than a live URL,
 so the score is **reproducible** and isolates extraction quality from live web
 variance (Overpass/DuckDuckGo non-determinism).
 
@@ -165,7 +165,7 @@ The set deliberately includes **negative cases** to test the core principle
 
 | Entry | What it tests |
 |---|---|
-| Granulats Vicat, GROUPE Gachet, Indiana Limestone | Active operators — name, type, status, materials |
+| Granulats Vicat, GROUPE Gachet, Indiana Limestone | Active operators, name, type, status, materials |
 | Ancienne carrière de la Tuilerie | A **closed** quarry → `operational_status: inactive` |
 | Job board page ("Option Carrière") | An **irrelevant** page → must **abstain** on every field |
 
@@ -194,8 +194,8 @@ correctly abstains on the irrelevant job-board page (driving the 20% abstention
 rate) and labels the disused quarry `inactive`. Materials F1 (0.79) is the
 weakest axis: the model occasionally splits or merges material categories (e.g.
 "crushed stone" + "building stone" vs. a single "limestone"), which the synonym
-map only partially absorbs. Grounding is 100% — every emitted value cites a
-quote — though evidence-to-value *alignment* can still be loose (see
+map only partially absorbs. Grounding is 100%, every emitted value cites a
+quote, though evidence-to-value *alignment* can still be loose (see
 [Known Limitations](#known-limitations)).
 
 ### Run it
@@ -208,7 +208,7 @@ make eval-mock   # offline self-test of the scoring harness (no key, no cost)
 The scoring logic itself is covered by 17 unit tests (`tests/unit/eval/`), so a
 regression in the metric maths is caught without spending tokens.
 
-> 📖 **Deep dive:** [`docs/testing.md`](docs/testing.md) — full test suite map,
+> 📖 **Deep dive:** [`docs/testing.md`](docs/testing.md), full test suite map,
 > ground-truth format, and eval metrics.
 
 ---
@@ -286,7 +286,7 @@ The relevance filter keeps only sources carrying an **unambiguous** quarry signa
 The French word *carrière* alone (quarry **or** career) is deliberately rejected,
 which previously let job boards, dictionaries, and retirement sites through.
 The trade-off is lower recall: a real quarry with no findable authoritative source
-yields `source_urls: []` and the pipeline abstains rather than attaching junk —
+yields `source_urls: []` and the pipeline abstains rather than attaching junk,
 consistent with the brief's "say so when you can't tell" principle.
 
 ### Real extraction example
@@ -332,12 +332,12 @@ consistent with the brief's "say so when you can't tell" principle.
 ```
 
 > **Grounding note:** `materials_produced` (sand/gravel) is correctly extracted but
-> its evidence points to the site name rather than the exact material mention — the
+> its evidence points to the site name rather than the exact material mention, the
 > model inferred the materials and cited a nearby span. Tightening evidence↔quote
 > alignment (reject a field when its quote does not contain the value) is tracked as
 > future work in [Known Limitations](#known-limitations).
 
-### Full job example — multi-source reconciliation
+### Full job example: multi-source reconciliation
 
 A complete job (`POST /api/jobs` → worker → `GET /api/sites/:id`) around Lyon
 produced this persisted record. Note that `materials_produced` merges values from
@@ -403,7 +403,7 @@ make precommit          # Run all pre-commit hooks
 | Integration | `tests/integration/` | Repositories + API against a real PostgreSQL (testcontainers) | 16 |
 | Eval | `tests/eval/` | Extractor scored against ground truth | harness + 17 scorer tests |
 
-External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests —
+External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests,
 no network calls, no LLM cost.
 
 ---

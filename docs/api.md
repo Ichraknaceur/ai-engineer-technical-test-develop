@@ -27,7 +27,7 @@ Submit a new extraction job.
 | `radius_km` | float | Yes | > 0, ≤ 500 |
 | `max_usd_cost` | float | No | Hard cap on LLM spend |
 
-**Response `201`** — the full job object:
+**Response `201`**: the full job object:
 
 ```json
 {
@@ -68,8 +68,8 @@ Poll a single job's state. Returns the job object, or `404` if unknown.
 |---|---|
 | `pending` | Queued, not started |
 | `running` | Worker is processing (`progress`, `status_message` update live) |
-| `completed` | Done — sites available via `/api/sites` |
-| `failed` | Error — see the `error` field |
+| `completed` | Done, sites available via `/api/sites` |
+| `failed` | Error, see the `error` field |
 
 ---
 
@@ -118,7 +118,7 @@ and metrics. Returns `404` if unknown.
 
 ## Debug endpoints
 
-These run individual pipeline stages without a full job — handy for validating
+These run individual pipeline stages without a full job, handy for validating
 behaviour and (for `/extract`) checking the prompt before spending tokens.
 
 | Endpoint | Purpose |
