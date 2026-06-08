@@ -94,6 +94,10 @@ The domain never imports from infrastructure. Every external dependency is
 injected through a port interface, making the system fully testable without
 real databases, queues, or API keys.
 
+> 📖 **Deep dive:** [`docs/pipeline.md`](docs/pipeline.md) walks through every
+> stage (modules, behaviour, trust tiers, abstention) ·
+> [`docs/technical-spec.md`](docs/technical-spec.md) for the full spec.
+
 ---
 
 ## Technology Stack
@@ -204,6 +208,9 @@ make eval-mock   # offline self-test of the scoring harness (no key, no cost)
 The scoring logic itself is covered by 17 unit tests (`tests/unit/eval/`), so a
 regression in the metric maths is caught without spending tokens.
 
+> 📖 **Deep dive:** [`docs/testing.md`](docs/testing.md) — full test suite map,
+> ground-truth format, and eval metrics.
+
 ---
 
 ## Known Limitations
@@ -225,7 +232,10 @@ regression in the metric maths is caught without spending tokens.
 
 ## Debug Endpoints
 
-Available at `http://localhost:8000/docs` once the stack is running.
+Available at `http://localhost:8000/docs` once the stack is running. The core
+REST surface (jobs, sites, health) is documented in
+[`docs/api.md`](docs/api.md); the endpoints below run individual pipeline
+stages in isolation.
 
 | Endpoint | Purpose |
 |---|---|
@@ -395,6 +405,25 @@ make precommit          # Run all pre-commit hooks
 
 External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests —
 no network calls, no LLM cost.
+
+---
+
+## Documentation
+
+This README is the single source of truth. A deeper **MkDocs** site under
+[`docs/`](docs/) expands each area for readers who want more detail:
+
+| Page | Contents |
+|---|---|
+| [`docs/pipeline.md`](docs/pipeline.md) | Every stage: modules, behaviour, trust tiers, abstention |
+| [`docs/api.md`](docs/api.md) | All REST + debug endpoints with request/response shapes |
+| [`docs/testing.md`](docs/testing.md) | Test suite map, ground-truth format, eval metrics |
+| [`docs/deployment.md`](docs/deployment.md) | Docker Compose services, environment variables |
+| [`docs/technical-spec.md`](docs/technical-spec.md) | Condensed architecture spec |
+
+```sh
+make docs-serve    # preview locally at http://localhost:8090
+```
 
 ---
 

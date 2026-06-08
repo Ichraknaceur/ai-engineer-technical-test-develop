@@ -17,9 +17,11 @@ make bootstrap
 ```
 
 This will:
-1. Copy `.env.example` → `.env` (fill in your `ANTHROPIC_API_KEY`)
-2. Build Docker images
-3. Run database migrations
+1. Copy `.env.example` → `.env` (fill in your `OPENAI_API_KEY`)
+2. Build the Docker images
+
+Database migrations run automatically on backend startup via the Docker
+entrypoint — no separate migration step is needed.
 
 Then start all services:
 
@@ -37,13 +39,13 @@ make up
 
 ## Docker Compose services
 
-| Service | Image | Port |
+| Service | Build / image | Port |
 |---|---|---|
-| `backend` | `./backend` | 8000 |
-| `worker` | `./backend` (Celery) | — |
-| `frontend` | `./frontend` | 3000 |
-| `postgres` | `postgres:16-alpine` | 5432 |
-| `redis` | `redis:7-alpine` | 6379 |
+| `backend` | root `Dockerfile` (uvicorn) | 8000 |
+| `worker` | root `Dockerfile` (Celery) | — |
+| `frontend` | `./frontend` (Vite) | 3000 |
+| `postgres` | `postgres:16-alpine` | 5432 (internal) |
+| `redis` | `redis:7-alpine` | 6379 (internal) |
 
 ---
 
@@ -53,11 +55,13 @@ Copy `.env.example` to `.env` and fill in:
 
 | Variable | Required | Default |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | **Yes** | — |
+| `OPENAI_API_KEY` | **Yes** | — |
 | `DATABASE_URL` | Yes | set in docker-compose |
 | `REDIS_URL` | Yes | set in docker-compose |
+| `OVERPASS_URL` | No | public instance (override to avoid rate limits) |
 | `MAX_PAGES_PER_QUARRY` | No | `5` |
 | `BASE_SCRAPE_DELAY_S` | No | `1.0` |
+| `SCRAPER_USER_AGENT` | No | `QuarryBot/1.0 (research; …)` |
 | `LOG_LEVEL` | No | `INFO` |
 
 ---
