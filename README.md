@@ -43,7 +43,7 @@ make extract LAT=48.8566 LON=2.3522 RADIUS_KM=50
 │  React UI  (:3000)                                                 │
 │   POST /api/jobs → job_id   ·   poll GET /api/jobs(/:id) every 2s  │
 │   browse GET /api/sites(/:id) with grounded evidence & provenance  │
-└───────────────────────────────┬──────────────────────────────────-┘
+└───────────────────────────────┬───────────────────────────────────┘
                                 │  REST
                      ┌──────────▼──────────┐
                      │   FastAPI Backend   │  (:8000)
@@ -286,7 +286,7 @@ The relevance filter keeps only sources carrying an **unambiguous** quarry signa
 The French word *carrière* alone (quarry **or** career) is deliberately rejected,
 which previously let job boards, dictionaries, and retirement sites through.
 The trade-off is lower recall: a real quarry with no findable authoritative source
-yields `source_urls: []` and the pipeline abstains rather than attaching junk, 
+yields `source_urls: []` and the pipeline abstains rather than attaching junk,
 consistent with the brief's "say so when you can't tell" principle.
 
 ### Real extraction example
@@ -403,7 +403,7 @@ make precommit          # Run all pre-commit hooks
 | Integration | `tests/integration/` | Repositories + API against a real PostgreSQL (testcontainers) | 16 |
 | Eval | `tests/eval/` | Extractor scored against ground truth | harness + 17 scorer tests |
 
-External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests with 
+External services (Overpass, DuckDuckGo, OpenAI) are always mocked in tests with
 no network calls, no LLM cost.
 
 ---
