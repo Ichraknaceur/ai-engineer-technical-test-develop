@@ -1,0 +1,60 @@
+{
+  "description": "Small hand-verified ground-truth set for evaluating the LLM extractor. Each entry provides a representative cleaned-text excerpt (as the scraper would produce) and the expected grounded values. Scoring runs the extractor on the fixed text so results are reproducible regardless of live web variance.",
+  "entries": [
+    {
+      "id": "granulats_vicat",
+      "source_id": "src_eval_1",
+      "source_text": "Granulats Vicat. Matière première naturelle indispensable pour la fabrication de béton, nous produisons et commercialisons plusieurs millions de tonnes de granulats par an. Nos carrières exploitent du sable et du gravier alluvionnaire ainsi que des roches massives. Le groupe Vicat est un acteur industriel actif sur ce marché.",
+      "expected": {
+        "official_name": "Granulats Vicat",
+        "site_type": "Quarry",
+        "operational_status": "active",
+        "materials_produced": ["sand", "gravel"]
+      }
+    },
+    {
+      "id": "groupe_gachet",
+      "source_id": "src_eval_2",
+      "source_text": "Accueil. GROUPE Gachet. Leader spécialisé dans les granulats et béton, le GROUPE Gachet évolue depuis 1931 au service des artisans, entrepreneurs, agriculteurs, industriels et particuliers. Exploitation de gravières et sablières, extraction d'argiles et de kaolin. Nos produits sont certifiés NF.",
+      "expected": {
+        "official_name": "GROUPE Gachet",
+        "site_type": "Quarry",
+        "operational_status": "active",
+        "materials_produced": ["aggregate", "sand", "clay"]
+      }
+    },
+    {
+      "id": "indiana_limestone",
+      "source_id": "src_eval_3",
+      "source_text": "Indiana Limestone Company operates several active limestone quarries near Bedford, Indiana. We are the nation's largest producer of dimensional limestone, supplying crushed stone and building stone for construction projects across the United States. Our quarries remain in full operation.",
+      "expected": {
+        "official_name": "Indiana Limestone Company",
+        "site_type": "Quarry",
+        "operational_status": "active",
+        "materials_produced": ["limestone"]
+      }
+    },
+    {
+      "id": "former_quarry_closed",
+      "source_id": "src_eval_4",
+      "source_text": "Ancienne carrière de la Tuilerie. Ce site d'extraction de calcaire a cessé toute activité en 1998. La carrière est aujourd'hui désaffectée et le terrain a été réaménagé en zone naturelle protégée. Plus aucune exploitation n'y est conduite.",
+      "expected": {
+        "official_name": "Ancienne carrière de la Tuilerie",
+        "site_type": "Quarry",
+        "operational_status": "inactive",
+        "materials_produced": ["limestone"]
+      }
+    },
+    {
+      "id": "irrelevant_page_abstain",
+      "source_id": "src_eval_5",
+      "source_text": "Option Carrière - Trouvez votre prochain emploi parmi des milliers d'offres. Déposez votre CV et boostez votre carrière professionnelle. Conseils pour réussir vos entretiens et négocier votre salaire.",
+      "expected": {
+        "official_name": null,
+        "site_type": null,
+        "operational_status": null,
+        "materials_produced": []
+      }
+    }
+  ]
+}

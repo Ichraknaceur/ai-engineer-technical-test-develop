@@ -63,22 +63,26 @@ User (Browser)
 [coordinates + radius]
         │
         ▼
-   DISCOVERY      ← Overpass API + web search
+   DISCOVERY      ← Overpass API (landuse=quarry), bbox + multi-instance fallback
         │
         ▼
-   SCRAPING       ← httpx + BeautifulSoup, robots.txt respected
+   WEB SEARCH     ← DuckDuckGo, relevance filter (unambiguous quarry signal)
         │
         ▼
-   EXTRACTION     ← OpenAI API, grounded fields, explicit abstention
+   SCRAPING       ← httpx + BeautifulSoup, robots.txt + jitter + SSRF guard
         │
         ▼
-  RECONCILIATION  ← multi-source merge, winner selection
+   EXTRACTION     ← OpenAI gpt-4o (provider-agnostic), grounded fields, abstention
+        │
+        ▼
+  RECONCILIATION  ← multi-source merge, trust_tier × confidence
         │
         ▼
    VALIDATION     ← JSON Schema v2.0.0
         │
         ▼
-   PostgreSQL
+   PostgreSQL (JSONB)
 ```
 
-See [`TECHNICAL_SPEC.md`](../TECHNICAL_SPEC.md) for full details on each stage.
+See [`pipeline.md`](pipeline.md) for the per-stage walkthrough. The full brief
+response lives in `TECHNICAL_SPEC.md` at the repository root.

@@ -1,6 +1,6 @@
 # Quarry Extraction Pipeline
 
-> **Materials Extraction** — discover and enrich quarry records from messy public web sources.
+> **Materials Extraction**: discover and enrich quarry records from messy public web sources.
 
 ---
 

@@ -44,26 +44,22 @@ init: check-uv pyproject.toml .pre-commit-config.yaml install ## Initialize proj
 	$(COPY_ENV_COMMAND)
 
 .PHONY: bootstrap
-bootstrap: check-docker init ## Full first-time setup (Docker + DB migrations)
+bootstrap: check-docker ## First-time setup: copy .env, build images, start all services
+	$(COPY_ENV_COMMAND)
+	@echo "→ Set OPENAI_API_KEY in .env before running make up"
 	docker compose build
-	docker compose run --rm backend alembic upgrade head
-	@echo "Ready. Run: docker compose up"
 
 .PHONY: all
 all: check-uv install format lint check ## Run format, lint, and all checks
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
-.PHONY: run
-run: check-uv install ## Run the local API server (no Docker)
-	uv run -- uvicorn backend.infrastructure.api.main:app --host 127.0.0.1 --port 8000 --reload
-
 .PHONY: up
-up: check-docker ## Start all services via Docker Compose
+up: check-docker ## Start all services (API on http://localhost:8000)
 	docker compose up
 
 .PHONY: down
-down: check-docker ## Stop all services
+down: check-docker ## Stop and remove all containers
 	docker compose down
 
 .PHONY: extract
@@ -103,16 +99,24 @@ test: check-uv ## Run full test suite with coverage
 	uv run -- pytest
 
 .PHONY: test-unit
-test-unit: check-uv ## Run unit tests only
+test-unit: check-uv ## Run unit tests only (no Docker needed)
 	uv run -- pytest tests/unit/ -v
+
+.PHONY: test-integration
+test-integration: check-uv check-docker ## Run integration tests (spins up a PostgreSQL container)
+	uv run -- pytest tests/integration/ -v --no-cov
 
 .PHONY: diff-cover
 diff-cover: check-uv test coverage.xml ## Show coverage diff against main branch
 	uv run -- diff-cover coverage.xml
 
 .PHONY: eval
-eval: check-uv install ## Run evaluation against ground truth
+eval: check-uv install ## Score the extractor against ground truth (live, needs OPENAI_API_KEY)
 	uv run -- python tests/eval/score.py
+
+.PHONY: eval-mock
+eval-mock: check-uv install ## Offline self-test of the eval harness (no API key, no cost)
+	uv run -- python tests/eval/score.py --mock
 
 # ── Documentation ─────────────────────────────────────────────────────────────
 
